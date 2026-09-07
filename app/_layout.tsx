@@ -27,6 +27,7 @@ export default function RootLayout() {
           headerTintColor: colors.text,
         }}
       >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="exercise-picker" options={{ presentation: 'modal' }} />
         <Stack.Screen
           name="active-session"
