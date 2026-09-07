@@ -51,14 +51,22 @@ export function SetRow({ set, focusedField, onFocusField, onComplete }: SetRowPr
         <Text style={[styles.fieldText, reps.isGhost && styles.ghostText]}>{reps.text}</Text>
       </Pressable>
 
-      <Pressable
-        onPress={() => onComplete(set.id)}
-        accessibilityRole="button"
-        accessibilityLabel={`Complete set ${set.setOrder}`}
-        style={[styles.checkmark, set.isCompleted && styles.checkmarkCompleted]}
-      >
-        <Text style={styles.checkmarkText}>✓</Text>
-      </Pressable>
+      <View style={styles.checkmarkWrapper}>
+        <Pressable
+          onPress={() => onComplete(set.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Complete set ${set.setOrder}`}
+          style={[styles.checkmark, set.isCompleted && styles.checkmarkCompleted]}
+        >
+          <Text style={styles.checkmarkText}>✓</Text>
+        </Pressable>
+
+        {set.isPersonalRecord ? (
+          <View style={styles.prBadge} accessibilityLabel="Personal record">
+            <Text style={styles.prBadgeText}>PR</Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -96,6 +104,9 @@ const styles = StyleSheet.create({
   ghostText: {
     color: colors.textGhost,
   },
+  checkmarkWrapper: {
+    position: 'relative',
+  },
   checkmark: {
     width: MIN_TOUCH_TARGET,
     height: MIN_TOUCH_TARGET,
@@ -110,6 +121,20 @@ const styles = StyleSheet.create({
   checkmarkText: {
     color: colors.text,
     fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+  },
+  prBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: colors.warning,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
+  },
+  prBadgeText: {
+    color: colors.background,
+    fontSize: fontSize.xs,
     fontWeight: fontWeight.bold,
   },
 });

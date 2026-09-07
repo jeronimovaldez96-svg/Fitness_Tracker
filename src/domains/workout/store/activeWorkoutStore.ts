@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import {
   completeWorkoutSet,
   getGhostSetsForExercise,
+  getHistoricalMaxE1RM,
   insertBlankSet,
   insertWorkoutExercise,
   resetWorkoutSets,
@@ -16,6 +17,7 @@ import {
 } from '@/core/notifications/restTimerNotifications';
 import { storage } from '@/core/storage/mmkv';
 import type { ExerciseSummary } from '@/domains/catalog/types/catalog.types';
+import { calculateE1RM } from '@/shared/utils/oneRepMax';
 import { generateId } from '@/shared/utils/id';
 
 import type { ActiveSet, ActiveWorkoutExercise, FocusedField } from '../types/workout.types';
@@ -44,6 +46,8 @@ type ActiveWorkoutState = {
   focusedField: FocusedField | null;
   restTimerTargetEndTimestamp: number | null;
   restTimerDurationSeconds: number | null;
+  /** Runtime-only (not persisted): set id of the most recent PR, used to trigger confetti. */
+  lastPersonalRecordSetId: string | null;
 
   startWorkout: (db: SQLiteDatabase) => Promise<void>;
   addExercise: (db: SQLiteDatabase, exercise: ExerciseSummary) => Promise<void>;
@@ -101,6 +105,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   focusedField: initialSnapshot?.focusedField ?? null,
   restTimerTargetEndTimestamp: initialSnapshot?.restTimerTargetEndTimestamp ?? null,
   restTimerDurationSeconds: initialSnapshot?.restTimerDurationSeconds ?? null,
+  lastPersonalRecordSetId: null,
 
   async startWorkout(db) {
     const workoutId = generateId();
@@ -151,6 +156,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
           isCompleted: false,
           weightKg: null,
           reps: null,
+          isPersonalRecord: false,
           ghostWeightKg: firstGhost?.weightKg ?? null,
           ghostReps: firstGhost?.reps ?? null,
           draftWeight: '',
@@ -226,6 +232,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
     await completeWorkoutSet(db, { id: setId, weightKg, reps, completedAt });
 
+    let isPersonalRecord = false;
+    const e1rm = weightKg !== null && reps !== null ? calculateE1RM(weightKg, reps) : null;
+    if (e1rm !== null) {
+      const historicalMax = await getHistoricalMaxE1RM(db, exercise.exerciseId, setId);
+      isPersonalRecord = historicalMax !== null && e1rm > historicalMax;
+    }
+
     const restTimerTargetEndTimestamp = Date.now() + DEFAULT_REST_SECONDS * 1000;
 
     set({
@@ -235,12 +248,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
           : {
               ...ex,
               sets: ex.sets.map((s) =>
-                s.id !== setId ? s : { ...s, isCompleted: true, weightKg, reps }
+                s.id !== setId ? s : { ...s, isCompleted: true, weightKg, reps, isPersonalRecord }
               ),
             }
       ),
       restTimerTargetEndTimestamp,
       restTimerDurationSeconds: DEFAULT_REST_SECONDS,
+      lastPersonalRecordSetId: isPersonalRecord ? setId : get().lastPersonalRecordSetId,
     });
     persistSnapshot(get());
     void scheduleRestTimerNotification(restTimerTargetEndTimestamp);
@@ -274,6 +288,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       isCompleted: false,
       weightKg: null,
       reps: null,
+      isPersonalRecord: false,
       ghostWeightKg: lastSet?.weightKg ?? lastSet?.ghostWeightKg ?? null,
       ghostReps: lastSet?.reps ?? lastSet?.ghostReps ?? null,
       draftWeight: '',
@@ -313,6 +328,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
                   isCompleted: false,
                   weightKg: null,
                   reps: null,
+                  isPersonalRecord: false,
                   draftWeight: '',
                   draftReps: '',
                   ghostWeightKg: ghostSets[index]?.weightKg ?? null,

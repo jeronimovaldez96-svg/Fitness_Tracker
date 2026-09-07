@@ -5,6 +5,7 @@ export type ActiveSet = {
   isCompleted: boolean;
   weightKg: number | null;
   reps: number | null;
+  isPersonalRecord: boolean;
   ghostWeightKg: number | null;
   ghostReps: number | null;
   /** Uncommitted numeric-pad text. Empty string means "untouched" (show ghost/committed value). */

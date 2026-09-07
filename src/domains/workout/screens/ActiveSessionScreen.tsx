@@ -8,6 +8,7 @@ import { getExerciseById } from '@/core/database/queries/exercises.queries';
 import { colors, fontSize, fontWeight, MIN_TOUCH_TARGET, spacing } from '@/core/theme';
 import type { ExerciseSummary } from '@/domains/catalog/types/catalog.types';
 import { Button } from '@/shared/components/Button';
+import { Confetti } from '@/shared/components/Confetti';
 import { Modal } from '@/shared/components/Modal';
 import { NumericPad, type NumericPadKey } from '@/shared/components/NumericPad';
 import { calculatePlatesPerSide } from '@/shared/utils/plateCalculator';
@@ -38,6 +39,7 @@ export function ActiveSessionScreen() {
     addSet,
     replaceExercise,
     finishWorkout,
+    lastPersonalRecordSetId,
   } = useActiveWorkout();
 
   const [isPlateCalculatorEnabled, setPlateCalculatorEnabled] = useState(false);
@@ -190,6 +192,8 @@ export function ActiveSessionScreen() {
           style={styles.reconcileButton}
         />
       </Modal>
+
+      <Confetti trigger={lastPersonalRecordSetId} />
     </View>
   );
 }

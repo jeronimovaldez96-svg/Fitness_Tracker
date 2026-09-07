@@ -35,6 +35,7 @@ export function useActiveWorkout() {
     exercises: state.exercises,
     focusedField: state.focusedField,
     restTimerTargetEndTimestamp: state.restTimerTargetEndTimestamp,
+    lastPersonalRecordSetId: state.lastPersonalRecordSetId,
     startWorkout,
     addExercise,
     focusField: state.focusField,

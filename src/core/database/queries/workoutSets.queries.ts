@@ -63,6 +63,26 @@ export async function resetWorkoutSets(db: SQLiteDatabase, workoutExerciseId: st
 }
 
 /**
+ * TRD 7.3: the historical best e1RM (Brzycki, reps <= 10) ever recorded for
+ * this exercise, across all workouts including the in-progress one, so a PR
+ * can be beaten within the same session. Excludes the set being compared.
+ */
+export async function getHistoricalMaxE1RM(
+  db: SQLiteDatabase,
+  exerciseId: string,
+  excludeSetId: string
+): Promise<number | null> {
+  const row = await db.getFirstAsync<{ max_e1rm: number | null }>(
+    `SELECT MAX(ws.weight_kg * (36.0 / (37 - ws.reps))) as max_e1rm
+     FROM workout_sets ws
+     JOIN workout_exercises we ON we.id = ws.workout_exercise_id
+     WHERE we.exercise_id = ? AND ws.is_completed = 1 AND ws.reps > 0 AND ws.reps <= 10 AND ws.id != ?`,
+    [exerciseId, excludeSetId]
+  );
+  return row?.max_e1rm ?? null;
+}
+
+/**
  * TRD 5.1 Ghost Value Engine: finds the sets from the most recent *completed*
  * workout that featured this exercise (excluding the in-progress workout).
  */
