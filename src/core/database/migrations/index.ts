@@ -25,7 +25,8 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
     await db.execAsync(`PRAGMA user_version = ${currentVersion}`);
   }
 
-  if (__DEV__) {
-    await seedDatabaseIfEmpty(db);
-  }
+  // Phase 1 ships with no separate content-authoring pipeline, so this
+  // baseline exercise catalog is the app's real starter content, not a
+  // dev-only fixture — it must run in every build, not just __DEV__.
+  await seedDatabaseIfEmpty(db);
 }
