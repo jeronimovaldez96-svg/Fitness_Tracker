@@ -44,6 +44,24 @@ export async function completeWorkoutSet(
   );
 }
 
+export async function updateWorkoutExerciseId(
+  db: SQLiteDatabase,
+  params: { workoutExerciseId: string; exerciseId: string }
+): Promise<void> {
+  await db.runAsync(
+    'UPDATE workout_exercises SET exercise_id = ? WHERE id = ?',
+    params.exerciseId,
+    params.workoutExerciseId
+  );
+}
+
+export async function resetWorkoutSets(db: SQLiteDatabase, workoutExerciseId: string): Promise<void> {
+  await db.runAsync(
+    'UPDATE workout_sets SET weight_kg = NULL, reps = NULL, is_completed = 0, completed_at = NULL WHERE workout_exercise_id = ?',
+    workoutExerciseId
+  );
+}
+
 /**
  * TRD 5.1 Ghost Value Engine: finds the sets from the most recent *completed*
  * workout that featured this exercise (excluding the in-progress workout).

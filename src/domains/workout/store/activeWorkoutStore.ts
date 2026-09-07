@@ -6,6 +6,8 @@ import {
   getGhostSetsForExercise,
   insertBlankSet,
   insertWorkoutExercise,
+  resetWorkoutSets,
+  updateWorkoutExerciseId,
 } from '@/core/database/queries/workoutSets.queries';
 import { finishWorkoutRecord, insertWorkoutRecord } from '@/core/database/queries/workouts.queries';
 import {
@@ -21,6 +23,8 @@ import type { ActiveSet, ActiveWorkoutExercise, FocusedField } from '../types/wo
 const SNAPSHOT_KEY = 'active-workout-snapshot-v1';
 const DEFAULT_REST_SECONDS = 90;
 const MIN_REST_SECONDS = 5;
+
+export type ReplaceExerciseMode = 'transfer' | 'reset';
 
 type PersistedSnapshot = {
   workoutId: string;
@@ -49,6 +53,12 @@ type ActiveWorkoutState = {
   backspace: () => void;
   completeSet: (db: SQLiteDatabase, workoutExerciseId: string, setId: string) => Promise<void>;
   addSet: (db: SQLiteDatabase, workoutExerciseId: string) => Promise<void>;
+  replaceExercise: (
+    db: SQLiteDatabase,
+    workoutExerciseId: string,
+    newExercise: ExerciseSummary,
+    mode: ReplaceExerciseMode
+  ) => Promise<void>;
   adjustRestTimer: (deltaSeconds: number) => void;
   skipRestTimer: () => void;
   finishWorkout: (db: SQLiteDatabase) => Promise<void>;
@@ -276,6 +286,50 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       ),
       focusedField: { setId: newSetId, field: 'weight' },
     });
+    persistSnapshot(get());
+  },
+
+  async replaceExercise(db, workoutExerciseId, newExercise, mode) {
+    const state = get();
+    const exercise = state.exercises.find((ex) => ex.id === workoutExerciseId);
+    if (!exercise || !state.workoutId) return;
+
+    await updateWorkoutExerciseId(db, { workoutExerciseId, exerciseId: newExercise.id });
+
+    if (mode === 'reset') {
+      await resetWorkoutSets(db, workoutExerciseId);
+      const ghostSets = await getGhostSetsForExercise(db, newExercise.id, state.workoutId);
+
+      set({
+        exercises: get().exercises.map((ex) =>
+          ex.id !== workoutExerciseId
+            ? ex
+            : {
+                ...ex,
+                exerciseId: newExercise.id,
+                exerciseName: newExercise.name,
+                sets: ex.sets.map((s, index) => ({
+                  ...s,
+                  isCompleted: false,
+                  weightKg: null,
+                  reps: null,
+                  draftWeight: '',
+                  draftReps: '',
+                  ghostWeightKg: ghostSets[index]?.weightKg ?? null,
+                  ghostReps: ghostSets[index]?.reps ?? null,
+                })),
+              }
+        ),
+      });
+    } else {
+      set({
+        exercises: get().exercises.map((ex) =>
+          ex.id !== workoutExerciseId
+            ? ex
+            : { ...ex, exerciseId: newExercise.id, exerciseName: newExercise.name }
+        ),
+      });
+    }
     persistSnapshot(get());
   },
 

@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 
 import type { ExerciseSummary } from '@/domains/catalog/types/catalog.types';
 
-import { useActiveWorkoutStore } from '../store/activeWorkoutStore';
+import { type ReplaceExerciseMode, useActiveWorkoutStore } from '../store/activeWorkoutStore';
 
 export function useActiveWorkout() {
   const db = useSQLiteContext();
@@ -22,6 +22,11 @@ export function useActiveWorkout() {
     (workoutExerciseId: string) => state.addSet(db, workoutExerciseId),
     [db, state]
   );
+  const replaceExercise = useCallback(
+    (workoutExerciseId: string, newExercise: ExerciseSummary, mode: ReplaceExerciseMode) =>
+      state.replaceExercise(db, workoutExerciseId, newExercise, mode),
+    [db, state]
+  );
   const finishWorkout = useCallback(() => state.finishWorkout(db), [db, state]);
 
   return {
@@ -38,6 +43,7 @@ export function useActiveWorkout() {
     backspace: state.backspace,
     completeSet,
     addSet,
+    replaceExercise,
     finishWorkout,
   };
 }
