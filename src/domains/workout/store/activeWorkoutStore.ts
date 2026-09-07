@@ -8,6 +8,10 @@ import {
   insertWorkoutExercise,
 } from '@/core/database/queries/workoutSets.queries';
 import { finishWorkoutRecord, insertWorkoutRecord } from '@/core/database/queries/workouts.queries';
+import {
+  cancelRestTimerNotification,
+  scheduleRestTimerNotification,
+} from '@/core/notifications/restTimerNotifications';
 import { storage } from '@/core/storage/mmkv';
 import type { ExerciseSummary } from '@/domains/catalog/types/catalog.types';
 import { generateId } from '@/shared/utils/id';
@@ -15,8 +19,8 @@ import { generateId } from '@/shared/utils/id';
 import type { ActiveSet, ActiveWorkoutExercise, FocusedField } from '../types/workout.types';
 
 const SNAPSHOT_KEY = 'active-workout-snapshot-v1';
-/** Stub default; the real rest-timer engine (durations per exercise, adjustments) lands in M5. */
 const DEFAULT_REST_SECONDS = 90;
+const MIN_REST_SECONDS = 5;
 
 type PersistedSnapshot = {
   workoutId: string;
@@ -25,6 +29,7 @@ type PersistedSnapshot = {
   exercises: ActiveWorkoutExercise[];
   focusedField: FocusedField | null;
   restTimerTargetEndTimestamp: number | null;
+  restTimerDurationSeconds: number | null;
 };
 
 type ActiveWorkoutState = {
@@ -34,6 +39,7 @@ type ActiveWorkoutState = {
   exercises: ActiveWorkoutExercise[];
   focusedField: FocusedField | null;
   restTimerTargetEndTimestamp: number | null;
+  restTimerDurationSeconds: number | null;
 
   startWorkout: (db: SQLiteDatabase) => Promise<void>;
   addExercise: (db: SQLiteDatabase, exercise: ExerciseSummary) => Promise<void>;
@@ -43,6 +49,8 @@ type ActiveWorkoutState = {
   backspace: () => void;
   completeSet: (db: SQLiteDatabase, workoutExerciseId: string, setId: string) => Promise<void>;
   addSet: (db: SQLiteDatabase, workoutExerciseId: string) => Promise<void>;
+  adjustRestTimer: (deltaSeconds: number) => void;
+  skipRestTimer: () => void;
   finishWorkout: (db: SQLiteDatabase) => Promise<void>;
 };
 
@@ -58,6 +66,7 @@ function persistSnapshot(state: ActiveWorkoutState): void {
     exercises: state.exercises,
     focusedField: state.focusedField,
     restTimerTargetEndTimestamp: state.restTimerTargetEndTimestamp,
+    restTimerDurationSeconds: state.restTimerDurationSeconds,
   };
   storage.set(SNAPSHOT_KEY, JSON.stringify(snapshot));
 }
@@ -81,6 +90,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   exercises: initialSnapshot?.exercises ?? [],
   focusedField: initialSnapshot?.focusedField ?? null,
   restTimerTargetEndTimestamp: initialSnapshot?.restTimerTargetEndTimestamp ?? null,
+  restTimerDurationSeconds: initialSnapshot?.restTimerDurationSeconds ?? null,
 
   async startWorkout(db) {
     const workoutId = generateId();
@@ -206,6 +216,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
     await completeWorkoutSet(db, { id: setId, weightKg, reps, completedAt });
 
+    const restTimerTargetEndTimestamp = Date.now() + DEFAULT_REST_SECONDS * 1000;
+
     set({
       exercises: get().exercises.map((ex) =>
         ex.id !== workoutExerciseId
@@ -217,10 +229,11 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
               ),
             }
       ),
-      // Stub: real wall-clock rest timer engine (banner, notifications, adjustments) is M5.
-      restTimerTargetEndTimestamp: Date.now() + DEFAULT_REST_SECONDS * 1000,
+      restTimerTargetEndTimestamp,
+      restTimerDurationSeconds: DEFAULT_REST_SECONDS,
     });
     persistSnapshot(get());
+    void scheduleRestTimerNotification(restTimerTargetEndTimestamp);
 
     const refreshedExercise = get().exercises.find((ex) => ex.id === workoutExerciseId);
     const currentIndex = refreshedExercise?.sets.findIndex((s) => s.id === setId) ?? -1;
@@ -266,12 +279,39 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     persistSnapshot(get());
   },
 
+  adjustRestTimer(deltaSeconds) {
+    const state = get();
+    if (state.restTimerTargetEndTimestamp === null) return;
+
+    const newTarget = state.restTimerTargetEndTimestamp + deltaSeconds * 1000;
+    if (newTarget - Date.now() < MIN_REST_SECONDS * 1000) {
+      get().skipRestTimer();
+      return;
+    }
+
+    const newDuration = Math.max(
+      MIN_REST_SECONDS,
+      (state.restTimerDurationSeconds ?? DEFAULT_REST_SECONDS) + deltaSeconds
+    );
+
+    set({ restTimerTargetEndTimestamp: newTarget, restTimerDurationSeconds: newDuration });
+    persistSnapshot(get());
+    void scheduleRestTimerNotification(newTarget);
+  },
+
+  skipRestTimer() {
+    set({ restTimerTargetEndTimestamp: null, restTimerDurationSeconds: null });
+    persistSnapshot(get());
+    void cancelRestTimerNotification();
+  },
+
   async finishWorkout(db) {
     const state = get();
     if (!state.workoutId) return;
 
     await finishWorkoutRecord(db, { id: state.workoutId, endTime: Date.now() });
     storage.remove(SNAPSHOT_KEY);
+    void cancelRestTimerNotification();
 
     set({
       workoutId: null,
@@ -280,6 +320,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       exercises: [],
       focusedField: null,
       restTimerTargetEndTimestamp: null,
+      restTimerDurationSeconds: null,
     });
   },
 }));

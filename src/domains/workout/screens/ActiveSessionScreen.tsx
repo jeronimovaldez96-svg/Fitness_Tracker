@@ -11,6 +11,7 @@ import { calculatePlatesPerSide } from '@/shared/utils/plateCalculator';
 import { setNavigationCallback } from '@/shared/utils/navigationCallback';
 
 import { useActiveWorkout } from '../hooks/useActiveWorkout';
+import { RestTimerBanner } from '../components/RestTimerBanner';
 import { WorkoutCard } from '../components/WorkoutCard';
 
 export function ActiveSessionScreen() {
@@ -97,6 +98,7 @@ export function ActiveSessionScreen() {
   return (
     <View style={styles.container}>
       <FlatList
+        style={styles.list}
         data={exercises}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
@@ -117,6 +119,8 @@ export function ActiveSessionScreen() {
           </View>
         }
       />
+
+      <RestTimerBanner />
 
       {/* Rendered inline (not a Modal) so tapping another field while the pad
           is open switches focus instead of being swallowed by a backdrop. */}
@@ -142,6 +146,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  list: {
+    flex: 1,
   },
   listContent: {
     padding: spacing.md,
