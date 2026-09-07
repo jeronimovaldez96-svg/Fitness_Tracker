@@ -18,6 +18,10 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="exercise-picker" options={{ presentation: 'modal' }} />
+        <Stack.Screen
+          name="active-session"
+          options={{ presentation: 'fullScreenModal', title: 'Active Workout' }}
+        />
       </Stack>
     </SQLiteProvider>
   );
