@@ -1,14 +1,18 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { seedDatabaseIfEmpty } from '../seed';
+import { seedDatabaseIfEmpty, seedRoutinesIfEmpty } from '../seed';
 import { up as up001 } from './001_initial_schema';
+import { up as up002 } from './002_plans_and_progress';
 
 type Migration = {
   version: number;
   up: (db: SQLiteDatabase) => Promise<void>;
 };
 
-const MIGRATIONS: Migration[] = [{ version: 1, up: up001 }];
+const MIGRATIONS: Migration[] = [
+  { version: 1, up: up001 },
+  { version: 2, up: up002 },
+];
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
   // foreign_keys is a per-connection PRAGMA (not persisted in the db file), so it must
@@ -29,4 +33,5 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
   // baseline exercise catalog is the app's real starter content, not a
   // dev-only fixture — it must run in every build, not just __DEV__.
   await seedDatabaseIfEmpty(db);
+  await seedRoutinesIfEmpty(db);
 }

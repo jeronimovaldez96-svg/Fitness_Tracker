@@ -1,9 +1,9 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, Text } from 'react-native';
 
 import { getMuscleGroups } from '@/core/database/queries/exercises.queries';
-import { colors, fontSize, MIN_TOUCH_TARGET, radius, spacing } from '@/core/theme';
+import { useThemedStyles, useTheme, type Theme } from '@/core/theme';
 
 import type { MuscleGroup } from '../types/catalog.types';
 
@@ -15,6 +15,7 @@ type MuscleFilterBarProps = {
 export function MuscleFilterBar({ selectedMuscleId, onSelect }: MuscleFilterBarProps) {
   const db = useSQLiteContext();
   const [muscleGroups, setMuscleGroups] = useState<MuscleGroup[]>([]);
+  const styles = useThemedStyles(createStyles);
 
   useEffect(() => {
     getMuscleGroups(db)
@@ -30,11 +31,11 @@ export function MuscleFilterBar({ selectedMuscleId, onSelect }: MuscleFilterBarP
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.container}
     >
-      <Chip label="All" isSelected={selectedMuscleId === null} onPress={() => onSelect(null)} />
+      <Chip label="ALL" isSelected={selectedMuscleId === null} onPress={() => onSelect(null)} />
       {muscleGroups.map((muscle) => (
         <Chip
           key={muscle.id}
-          label={muscle.name}
+          label={muscle.name.toUpperCase()}
           isSelected={selectedMuscleId === muscle.id}
           onPress={() => onSelect(muscle.id)}
         />
@@ -50,40 +51,41 @@ type ChipProps = {
 };
 
 function Chip({ label, isSelected, onPress }: ChipProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={[styles.chip, isSelected && styles.chipSelected]}
+      style={[
+        styles.chip,
+        isSelected ? { backgroundColor: colors.ink } : { borderWidth: 1, borderColor: colors.divider },
+      ]}
     >
-      <Text style={[styles.chipLabel, isSelected && styles.chipLabelSelected]}>{label}</Text>
+      <Text style={[styles.chipLabel, { color: isSelected ? colors.bg : colors.muted }]}>{label}</Text>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  chip: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipSelected: {
-    backgroundColor: colors.primary,
-  },
-  chipLabel: {
-    color: colors.textMuted,
-    fontSize: fontSize.sm,
-  },
-  chipLabelSelected: {
-    color: colors.text,
-  },
-});
+function createStyles(theme: Theme) {
+  return {
+    container: {
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingBottom: theme.spacing.md,
+    },
+    chip: {
+      minHeight: 44,
+      paddingHorizontal: theme.spacing.md,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    chipLabel: {
+      fontFamily: theme.fontFamily.bold,
+      fontSize: theme.fontSize.sm,
+      letterSpacing: 0.4,
+    },
+  };
+}

@@ -32,6 +32,7 @@ export function useActiveWorkout() {
   return {
     workoutId: state.workoutId,
     title: state.title,
+    startTime: state.startTime,
     exercises: state.exercises,
     focusedField: state.focusedField,
     restTimerTargetEndTimestamp: state.restTimerTargetEndTimestamp,

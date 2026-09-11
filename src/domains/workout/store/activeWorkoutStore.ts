@@ -11,6 +11,8 @@ import {
   updateWorkoutExerciseId,
 } from '@/core/database/queries/workoutSets.queries';
 import { finishWorkoutRecord, insertWorkoutRecord } from '@/core/database/queries/workouts.queries';
+import { getRoutineWithExercises, touchRoutineLastUsed } from '@/core/database/queries/routines.queries';
+import { getWorkoutDetail } from '@/core/database/queries/history.queries';
 import {
   cancelRestTimerNotification,
   scheduleRestTimerNotification,
@@ -49,7 +51,9 @@ type ActiveWorkoutState = {
   /** Runtime-only (not persisted): set id of the most recent PR, used to trigger confetti. */
   lastPersonalRecordSetId: string | null;
 
-  startWorkout: (db: SQLiteDatabase) => Promise<void>;
+  startWorkout: (db: SQLiteDatabase, title?: string) => Promise<void>;
+  startWorkoutFromRoutine: (db: SQLiteDatabase, routineId: string) => Promise<void>;
+  startWorkoutFromWorkout: (db: SQLiteDatabase, workoutId: string) => Promise<void>;
   addExercise: (db: SQLiteDatabase, exercise: ExerciseSummary) => Promise<void>;
   focusField: (setId: string, field: 'weight' | 'reps') => void;
   clearFocus: () => void;
@@ -65,8 +69,44 @@ type ActiveWorkoutState = {
   ) => Promise<void>;
   adjustRestTimer: (deltaSeconds: number) => void;
   skipRestTimer: () => void;
-  finishWorkout: (db: SQLiteDatabase) => Promise<void>;
+  /** Returns the id of the workout that was just finished, so callers can navigate to its summary. */
+  finishWorkout: (db: SQLiteDatabase) => Promise<string | null>;
 };
+
+/** Shared by startWorkoutFromRoutine/startWorkoutFromWorkout: inserts one exercise + N pre-filled blank sets. */
+async function seedExercise(
+  db: SQLiteDatabase,
+  workoutExerciseId: string,
+  exerciseId: string,
+  exerciseName: string,
+  equipmentId: string,
+  orderIndex: number,
+  workoutId: string,
+  ghosts: { weightKg: number | null; reps: number | null }[]
+): Promise<ActiveWorkoutExercise> {
+  await insertWorkoutExercise(db, { id: workoutExerciseId, workoutId, exerciseId, orderIndex });
+
+  const sets: ActiveSet[] = [];
+  for (const [index, ghost] of ghosts.entries()) {
+    const setId = generateId();
+    await insertBlankSet(db, { id: setId, workoutExerciseId, setOrder: index + 1 });
+    sets.push({
+      id: setId,
+      workoutExerciseId,
+      setOrder: index + 1,
+      isCompleted: false,
+      weightKg: null,
+      reps: null,
+      isPersonalRecord: false,
+      ghostWeightKg: ghost.weightKg,
+      ghostReps: ghost.reps,
+      draftWeight: '',
+      draftReps: '',
+    });
+  }
+
+  return { id: workoutExerciseId, exerciseId, exerciseName, equipmentId, lastLabel: null, sets };
+}
 
 function persistSnapshot(state: ActiveWorkoutState): void {
   if (!state.workoutId || state.startTime === null) {
@@ -107,10 +147,9 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   restTimerDurationSeconds: initialSnapshot?.restTimerDurationSeconds ?? null,
   lastPersonalRecordSetId: null,
 
-  async startWorkout(db) {
+  async startWorkout(db, title = 'Workout') {
     const workoutId = generateId();
     const startTime = Date.now();
-    const title = 'Workout';
 
     await insertWorkoutRecord(db, { id: workoutId, title, startTime });
 
@@ -122,6 +161,72 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       focusedField: null,
       restTimerTargetEndTimestamp: null,
     });
+    persistSnapshot(get());
+  },
+
+  async startWorkoutFromRoutine(db, routineId) {
+    const routine = await getRoutineWithExercises(db, routineId);
+    if (!routine) return;
+
+    await get().startWorkout(db, routine.name);
+    const workoutId = get().workoutId;
+    if (!workoutId) return;
+
+    const exercises: ActiveWorkoutExercise[] = [];
+    for (const [index, routineExercise] of routine.exercises.entries()) {
+      const ghosts = Array.from({ length: Math.max(1, routineExercise.targetSets) }, () => ({
+        weightKg: routineExercise.targetWeightKg,
+        reps: parseInt(routineExercise.targetReps, 10) || null,
+      }));
+      exercises.push(
+        await seedExercise(
+          db,
+          generateId(),
+          routineExercise.exerciseId,
+          routineExercise.exerciseName,
+          routineExercise.equipmentId,
+          index,
+          workoutId,
+          ghosts
+        )
+      );
+    }
+
+    set({ exercises });
+    persistSnapshot(get());
+    await touchRoutineLastUsed(db, routineId);
+  },
+
+  async startWorkoutFromWorkout(db, workoutId) {
+    const source = await getWorkoutDetail(db, workoutId);
+    if (!source) return;
+
+    await get().startWorkout(db, source.title);
+    const newWorkoutId = get().workoutId;
+    if (!newWorkoutId) return;
+
+    const exercises: ActiveWorkoutExercise[] = [];
+    for (const [index, sourceExercise] of source.exercises.entries()) {
+      const completedSets = sourceExercise.sets.filter((s) => s.weightKg !== null && s.reps !== null);
+      const ghosts =
+        completedSets.length > 0
+          ? completedSets.map((s) => ({ weightKg: s.weightKg, reps: s.reps }))
+          : [{ weightKg: null, reps: null }];
+      exercises.push(
+        await seedExercise(
+          db,
+          generateId(),
+          sourceExercise.exerciseId,
+          sourceExercise.exerciseName,
+          sourceExercise.equipmentId,
+          index,
+          newWorkoutId,
+          ghosts
+        )
+      );
+    }
+
+    set({ exercises });
     persistSnapshot(get());
   },
 
@@ -148,6 +253,11 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       id: workoutExerciseId,
       exerciseId: exercise.id,
       exerciseName: exercise.name,
+      equipmentId: exercise.equipmentId,
+      lastLabel:
+        firstGhost && firstGhost.weightKg !== null && firstGhost.reps !== null
+          ? `Last: ${firstGhost.weightKg} kg × ${firstGhost.reps}`
+          : null,
       sets: [
         {
           id: setId,
@@ -230,14 +340,14 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       activeSet.draftReps !== '' ? parseInt(activeSet.draftReps, 10) : activeSet.ghostReps;
     const completedAt = Date.now();
 
-    await completeWorkoutSet(db, { id: setId, weightKg, reps, completedAt });
-
     let isPersonalRecord = false;
     const e1rm = weightKg !== null && reps !== null ? calculateE1RM(weightKg, reps) : null;
     if (e1rm !== null) {
       const historicalMax = await getHistoricalMaxE1RM(db, exercise.exerciseId, setId);
       isPersonalRecord = historicalMax !== null && e1rm > historicalMax;
     }
+
+    await completeWorkoutSet(db, { id: setId, weightKg, reps, completedAt, isPersonalRecord });
 
     const restTimerTargetEndTimestamp = Date.now() + DEFAULT_REST_SECONDS * 1000;
 
@@ -323,6 +433,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
                 ...ex,
                 exerciseId: newExercise.id,
                 exerciseName: newExercise.name,
+                equipmentId: newExercise.equipmentId,
+                lastLabel: null,
                 sets: ex.sets.map((s, index) => ({
                   ...s,
                   isCompleted: false,
@@ -342,7 +454,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         exercises: get().exercises.map((ex) =>
           ex.id !== workoutExerciseId
             ? ex
-            : { ...ex, exerciseId: newExercise.id, exerciseName: newExercise.name }
+            : { ...ex, exerciseId: newExercise.id, exerciseName: newExercise.name, equipmentId: newExercise.equipmentId }
         ),
       });
     }
@@ -377,9 +489,10 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
   async finishWorkout(db) {
     const state = get();
-    if (!state.workoutId) return;
+    if (!state.workoutId) return null;
 
-    await finishWorkoutRecord(db, { id: state.workoutId, endTime: Date.now() });
+    const finishedWorkoutId = state.workoutId;
+    await finishWorkoutRecord(db, { id: finishedWorkoutId, endTime: Date.now() });
     storage.remove(SNAPSHOT_KEY);
     void cancelRestTimerNotification();
 
@@ -392,5 +505,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       restTimerTargetEndTimestamp: null,
       restTimerDurationSeconds: null,
     });
+
+    return finishedWorkoutId;
   },
 }));

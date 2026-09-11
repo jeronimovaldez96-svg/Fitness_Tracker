@@ -35,7 +35,8 @@
       "expo-router",
       "expo-sqlite",
       "expo-notifications",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "expo-sharing"
     ]
   }
 }

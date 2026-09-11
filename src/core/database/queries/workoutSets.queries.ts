@@ -33,13 +33,20 @@ export async function insertBlankSet(
 
 export async function completeWorkoutSet(
   db: SQLiteDatabase,
-  params: { id: string; weightKg: number | null; reps: number | null; completedAt: number }
+  params: {
+    id: string;
+    weightKg: number | null;
+    reps: number | null;
+    completedAt: number;
+    isPersonalRecord: boolean;
+  }
 ): Promise<void> {
   await db.runAsync(
-    'UPDATE workout_sets SET weight_kg = ?, reps = ?, is_completed = 1, completed_at = ? WHERE id = ?',
+    'UPDATE workout_sets SET weight_kg = ?, reps = ?, is_completed = 1, completed_at = ?, is_personal_record = ? WHERE id = ?',
     params.weightKg,
     params.reps,
     params.completedAt,
+    params.isPersonalRecord ? 1 : 0,
     params.id
   );
 }

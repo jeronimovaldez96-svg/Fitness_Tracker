@@ -15,6 +15,7 @@ export type ExerciseSummary = {
   id: string;
   name: string;
   primaryMuscleId: string;
+  primaryMuscleName: string;
   secondaryMuscleId: string | null;
   equipmentId: string;
   metricType: MetricType;

@@ -17,6 +17,9 @@ export type ActiveWorkoutExercise = {
   id: string;
   exerciseId: string;
   exerciseName: string;
+  equipmentId: string;
+  /** e.g. "Last: 80 kg × 8" from the most recent completed session, or null if none / not applicable. */
+  lastLabel: string | null;
   sets: ActiveSet[];
 };
 
