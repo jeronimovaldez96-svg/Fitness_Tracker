@@ -1,4 +1,4 @@
-import { Text, View } from 'react-native';
+import { StyleProp, Text, View, ViewStyle } from 'react-native';
 
 import { useThemedStyles, useTheme, type Theme } from '@/core/theme';
 
@@ -7,9 +7,10 @@ export type TagVariant = 'accent' | 'neutral' | 'outline';
 type TagProps = {
   label: string;
   variant?: TagVariant;
+  style?: StyleProp<ViewStyle>;
 };
 
-export function Tag({ label, variant = 'neutral' }: TagProps) {
+export function Tag({ label, variant = 'neutral', style }: TagProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
 
@@ -26,7 +27,7 @@ export function Tag({ label, variant = 'neutral' }: TagProps) {
   }[variant];
 
   return (
-    <View style={[styles.container, containerStyle]}>
+    <View style={[styles.container, containerStyle, style]}>
       <Text style={[styles.label, { color: textColor }]}>{label}</Text>
     </View>
   );

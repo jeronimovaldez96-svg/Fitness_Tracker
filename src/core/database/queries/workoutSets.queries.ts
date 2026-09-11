@@ -1,5 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { calculateE1RM, MAX_REPS_FOR_ESTIMATE } from '@/shared/utils/oneRepMax';
+
 export type GhostSet = {
   setOrder: number;
   weightKg: number | null;
@@ -70,23 +72,34 @@ export async function resetWorkoutSets(db: SQLiteDatabase, workoutExerciseId: st
 }
 
 /**
- * TRD 7.3: the historical best e1RM (Brzycki, reps <= 10) ever recorded for
- * this exercise, across all workouts including the in-progress one, so a PR
- * can be beaten within the same session. Excludes the set being compared.
+ * TRD 7.3: the historical best e1RM ever recorded for this exercise, across
+ * all workouts including the in-progress one, so a PR can be beaten within
+ * the same session. Excludes the set being compared.
+ *
+ * Computed in JS (rather than inline SQL) via the shared `calculateE1RM` so
+ * the piecewise Brzycki/Epley formula can't drift out of sync between the
+ * candidate-set check and this historical lookup.
  */
 export async function getHistoricalMaxE1RM(
   db: SQLiteDatabase,
   exerciseId: string,
   excludeSetId: string
 ): Promise<number | null> {
-  const row = await db.getFirstAsync<{ max_e1rm: number | null }>(
-    `SELECT MAX(ws.weight_kg * (36.0 / (37 - ws.reps))) as max_e1rm
+  const rows = await db.getAllAsync<{ weight_kg: number; reps: number }>(
+    `SELECT ws.weight_kg, ws.reps
      FROM workout_sets ws
      JOIN workout_exercises we ON we.id = ws.workout_exercise_id
-     WHERE we.exercise_id = ? AND ws.is_completed = 1 AND ws.reps > 0 AND ws.reps <= 10 AND ws.id != ?`,
-    [exerciseId, excludeSetId]
+     WHERE we.exercise_id = ? AND ws.is_completed = 1 AND ws.reps > 0 AND ws.reps <= ?
+       AND ws.weight_kg IS NOT NULL AND ws.id != ?`,
+    [exerciseId, MAX_REPS_FOR_ESTIMATE, excludeSetId]
   );
-  return row?.max_e1rm ?? null;
+
+  let maxE1rm: number | null = null;
+  for (const row of rows) {
+    const e1rm = calculateE1RM(row.weight_kg, row.reps);
+    if (e1rm !== null && (maxE1rm === null || e1rm > maxE1rm)) maxE1rm = e1rm;
+  }
+  return maxE1rm;
 }
 
 /**

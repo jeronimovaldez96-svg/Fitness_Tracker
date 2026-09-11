@@ -81,7 +81,7 @@ export default function ProgressScreen() {
         <Text style={[styles.sectionLabel, { color: colors.muted }]}>ESTIMATED 1RM · KG</Text>
         {lifts.length === 0 ? (
           <Text style={[styles.emptyText, { color: colors.muted }]}>
-            Log a few more sets (10 reps or fewer) to see 1RM trends here.
+            Log a few more sets (30 reps or fewer) to see 1RM trends here.
           </Text>
         ) : (
           lifts.map((lift) => (

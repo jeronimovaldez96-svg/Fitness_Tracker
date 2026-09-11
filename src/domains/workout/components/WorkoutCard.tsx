@@ -1,8 +1,12 @@
 import * as Haptics from 'expo-haptics';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { getEquipmentFamily } from '@/domains/catalog/utils/formGuide';
 import { useThemedStyles, useTheme, type Theme } from '@/core/theme';
 import { Button } from '@/shared/components/Button';
+import { FormGuideIllustration } from '@/shared/components/FormGuideIllustration';
+import { Modal } from '@/shared/components/Modal';
 import { Tag } from '@/shared/components/Tag';
 
 import type { ActiveWorkoutExercise, FocusedField } from '../types/workout.types';
@@ -27,6 +31,7 @@ export function WorkoutCard({
 }: WorkoutCardProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const [isFormGuideVisible, setIsFormGuideVisible] = useState(false);
 
   function handleComplete(setId: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -36,6 +41,15 @@ export function WorkoutCard({
   return (
     <View style={[styles.card, { borderBottomColor: colors.divider }]}>
       <View style={styles.header}>
+        <Pressable
+          onPress={() => setIsFormGuideVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`View form guide for ${exercise.exerciseName}`}
+          hitSlop={8}
+          style={[styles.thumbnail, { borderColor: colors.divider }]}
+        >
+          <FormGuideIllustration equipmentFamily={getEquipmentFamily(exercise.equipmentId)} color={colors.muted} size={32} />
+        </Pressable>
         <View style={styles.titleBlock}>
           <Text style={[styles.title, { color: colors.ink }]}>{exercise.exerciseName}</Text>
           <View style={styles.metaRow}>
@@ -73,6 +87,20 @@ export function WorkoutCard({
       ))}
 
       <Button label="+ Add set" variant="ghost" onPress={() => onAddSet(exercise.id)} style={styles.addSetButton} />
+
+      <Modal visible={isFormGuideVisible} onRequestClose={() => setIsFormGuideVisible(false)}>
+        <View style={styles.formGuideIllustrationWrap}>
+          <FormGuideIllustration equipmentFamily={getEquipmentFamily(exercise.equipmentId)} color={colors.ink} size={160} />
+        </View>
+        <Text style={[styles.formGuideTitle, { color: colors.ink }]}>{exercise.exerciseName}</Text>
+        <Button
+          label="Close"
+          onPress={() => setIsFormGuideVisible(false)}
+          variant="secondary"
+          fullWidth
+          style={styles.formGuideCloseButton}
+        />
+      </Modal>
     </View>
   );
 }
@@ -147,6 +175,25 @@ function createStyles(theme: Theme) {
       alignSelf: 'flex-start' as const,
       paddingHorizontal: 0,
       marginTop: 4,
+    },
+    thumbnail: {
+      width: 40,
+      height: 40,
+      borderWidth: 1,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    formGuideIllustrationWrap: {
+      alignItems: 'center' as const,
+      marginBottom: theme.spacing.lg,
+    },
+    formGuideTitle: {
+      fontFamily: theme.fontFamily.bold,
+      fontSize: theme.fontSize.xl,
+      textAlign: 'center' as const,
+    },
+    formGuideCloseButton: {
+      marginTop: theme.spacing.lg,
     },
   };
 }

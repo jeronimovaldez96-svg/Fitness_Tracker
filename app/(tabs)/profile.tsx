@@ -4,11 +4,26 @@ import { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { backupDatabase, exportWorkoutsAsCsv, resetAllData } from '@/core/storage/dataManagement';
-import { useLastBackupAt, usePlateCalculatorSetting, useUnitSystem } from '@/core/storage/settings';
+import { backupDatabase, exportWorkoutsAsCsv, resetAllData, restoreDatabase } from '@/core/storage/dataManagement';
+import {
+  useDefaultRestSeconds,
+  useLastBackupAt,
+  usePlateCalculatorSetting,
+  useUnitSystem,
+} from '@/core/storage/settings';
 import { useThemedStyles, useTheme, useThemeOverride, type Theme } from '@/core/theme';
+import { Modal } from '@/shared/components/Modal';
 import { SegmentedControl } from '@/shared/components/SegmentedControl';
 import { Tag } from '@/shared/components/Tag';
+
+const MIN_DEFAULT_REST_SECONDS = 15;
+const MAX_DEFAULT_REST_SECONDS = 300;
+
+function formatRestClock(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
 
 export default function ProfileScreen() {
   const db = useSQLiteContext();
@@ -19,8 +34,17 @@ export default function ProfileScreen() {
   const [unitSystem, setUnitSystem] = useUnitSystem();
   const [plateCalculatorEnabled, setPlateCalculatorEnabled] = usePlateCalculatorSetting();
   const [lastBackupAt, setLastBackupAt] = useLastBackupAt();
+  const [defaultRestSeconds, setDefaultRestSeconds] = useDefaultRestSeconds();
   const [isExporting, setIsExporting] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [isRestPickerVisible, setIsRestPickerVisible] = useState(false);
+
+  function handleAdjustDefaultRest(deltaSeconds: number) {
+    setDefaultRestSeconds(
+      Math.min(MAX_DEFAULT_REST_SECONDS, Math.max(MIN_DEFAULT_REST_SECONDS, defaultRestSeconds + deltaSeconds))
+    );
+  }
 
   async function handleExport() {
     setIsExporting(true);
@@ -45,6 +69,31 @@ export default function ProfileScreen() {
     } finally {
       setIsBackingUp(false);
     }
+  }
+
+  async function performRestore() {
+    setIsRestoring(true);
+    try {
+      const restored = await restoreDatabase(db);
+      // On success the app reloads before this line would matter; this only
+      // runs if the user cancelled the picker or the reload didn't happen.
+      if (!restored) setIsRestoring(false);
+    } catch (error) {
+      if (__DEV__) console.error('Restore failed', error);
+      Alert.alert('Restore failed', 'Could not restore the database from that file.');
+      setIsRestoring(false);
+    }
+  }
+
+  function handleRestore() {
+    Alert.alert(
+      'Restore from backup?',
+      'This completely replaces your current workout data with the picked backup file. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Restore', style: 'destructive', onPress: () => void performRestore() },
+      ]
+    );
   }
 
   function handleReset() {
@@ -86,10 +135,13 @@ export default function ProfileScreen() {
           onChange={setUnitSystem}
         />
       </View>
-      <View style={[styles.row, { borderBottomColor: colors.soft }]}>
+      <Pressable
+        onPress={() => setIsRestPickerVisible(true)}
+        style={[styles.row, { borderBottomColor: colors.soft }]}
+      >
         <Text style={[styles.rowLabel, { color: colors.ink }]}>Default rest</Text>
-        <Text style={[styles.rowValue, { color: colors.ink }]}>1:30</Text>
-      </View>
+        <Text style={[styles.rowValue, { color: colors.ink }]}>{formatRestClock(defaultRestSeconds)}</Text>
+      </Pressable>
       <Pressable
         onPress={() => setPlateCalculatorEnabled(!plateCalculatorEnabled)}
         style={[styles.row, { borderBottomColor: colors.soft }]}
@@ -149,6 +201,14 @@ export default function ProfileScreen() {
           {lastBackupAt ? new Date(lastBackupAt).toLocaleDateString() : 'Never'}
         </Text>
       </Pressable>
+      {__DEV__ ? (
+        <Pressable onPress={handleRestore} disabled={isRestoring} style={[styles.row, { borderBottomColor: colors.soft }]}>
+          <Text style={[styles.rowLabel, { color: colors.ink }]}>
+            {isRestoring ? 'Restoring…' : 'Restore from backup'}
+          </Text>
+          <Tag variant="outline" label="DEV" />
+        </Pressable>
+      ) : null}
 
       <View style={styles.footer}>
         <Pressable
@@ -161,6 +221,39 @@ export default function ProfileScreen() {
         </Pressable>
         <Text style={[styles.versionText, { color: colors.ghost }]}>Fitness_Tracker · local-only · v0.6.0</Text>
       </View>
+
+      <Modal visible={isRestPickerVisible} onRequestClose={() => setIsRestPickerVisible(false)}>
+        <Text style={[styles.restPickerTitle, { color: colors.ink }]}>Default rest</Text>
+        <View style={styles.restPickerRow}>
+          <Pressable
+            onPress={() => handleAdjustDefaultRest(-15)}
+            accessibilityRole="button"
+            accessibilityLabel="Decrease default rest by 15 seconds"
+            style={[styles.restPickerAdjustButton, { borderColor: colors.divider }]}
+          >
+            <Text style={[styles.restPickerAdjustLabel, { color: colors.ink }]}>−15</Text>
+          </Pressable>
+          <Text style={[styles.restPickerValue, { color: colors.ink }]}>
+            {formatRestClock(defaultRestSeconds)}
+          </Text>
+          <Pressable
+            onPress={() => handleAdjustDefaultRest(15)}
+            accessibilityRole="button"
+            accessibilityLabel="Increase default rest by 15 seconds"
+            style={[styles.restPickerAdjustButton, { borderColor: colors.divider }]}
+          >
+            <Text style={[styles.restPickerAdjustLabel, { color: colors.ink }]}>+15</Text>
+          </Pressable>
+        </View>
+        <Pressable
+          onPress={() => setIsRestPickerVisible(false)}
+          style={[styles.restPickerDoneButton, { backgroundColor: colors.ink }]}
+          accessibilityRole="button"
+          accessibilityLabel="Done"
+        >
+          <Text style={[styles.restPickerDoneLabel, { color: colors.bg }]}>Done</Text>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -264,6 +357,46 @@ function createStyles(theme: Theme) {
       fontFamily: theme.fontFamily.regular,
       fontSize: theme.fontSize.xs,
       marginTop: theme.spacing.lg,
+    },
+    restPickerTitle: {
+      fontFamily: theme.fontFamily.bold,
+      fontSize: theme.fontSize.xl,
+      marginBottom: theme.spacing.lg,
+    },
+    restPickerRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+      gap: theme.spacing.md,
+    },
+    restPickerAdjustButton: {
+      minHeight: theme.minTouchTarget,
+      minWidth: theme.minTouchTarget,
+      borderWidth: 1,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    restPickerAdjustLabel: {
+      fontFamily: theme.fontFamily.bold,
+      fontSize: theme.fontSize.md,
+    },
+    restPickerValue: {
+      flex: 1,
+      textAlign: 'center' as const,
+      fontFamily: theme.fontFamily.bold,
+      fontSize: theme.fontSize.display1,
+      fontVariant: ['tabular-nums' as const],
+    },
+    restPickerDoneButton: {
+      minHeight: theme.minTouchTarget,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      marginTop: theme.spacing.lg,
+    },
+    restPickerDoneLabel: {
+      fontFamily: theme.fontFamily.bold,
+      fontSize: theme.fontSize.md,
+      letterSpacing: 0.4,
     },
   };
 }

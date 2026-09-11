@@ -6,11 +6,14 @@ import { FlatList, Pressable, Text, View } from 'react-native';
 import { getLastSetSummaries } from '@/core/database/queries/exercises.queries';
 import { useThemedStyles, useTheme, type Theme } from '@/core/theme';
 import { Button } from '@/shared/components/Button';
+import { FormGuideIllustration } from '@/shared/components/FormGuideIllustration';
 import { Input } from '@/shared/components/Input';
+import { Modal } from '@/shared/components/Modal';
 import { Tag } from '@/shared/components/Tag';
 
 import { useExerciseSearch } from '../hooks/useExerciseSearch';
 import type { ExerciseSummary } from '../types/catalog.types';
+import { getEquipmentFamily, getMovementPattern } from '../utils/formGuide';
 import { MuscleFilterBar } from './MuscleFilterBar';
 
 type ExercisePickerProps = {
@@ -26,6 +29,7 @@ export function ExercisePicker({ onSelect, initialMuscleFilter = null }: Exercis
   const [selectedMuscleId, setSelectedMuscleId] = useState<string | null>(initialMuscleFilter);
   const results = useExerciseSearch(query, { primaryMuscleId: selectedMuscleId ?? undefined });
   const [lastUsed, setLastUsed] = useState<Record<string, string>>({});
+  const [formGuideExercise, setFormGuideExercise] = useState<ExerciseSummary | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +71,20 @@ export function ExercisePicker({ onSelect, initialMuscleFilter = null }: Exercis
             accessibilityLabel={item.name}
             style={[styles.row, { borderBottomColor: colors.soft }]}
           >
+            <Pressable
+              onPress={() => setFormGuideExercise(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`View form guide for ${item.name}`}
+              hitSlop={8}
+              style={[styles.thumbnail, { borderColor: colors.divider }]}
+            >
+              <FormGuideIllustration
+                movement={getMovementPattern(item.primaryMuscleId)}
+                equipmentFamily={getEquipmentFamily(item.equipmentId)}
+                color={colors.muted}
+                size={36}
+              />
+            </Pressable>
             <View style={styles.rowInfo}>
               <Text style={[styles.rowName, { color: colors.ink }]}>{item.name}</Text>
               <Text style={[styles.rowMuscle, { color: colors.muted }]}>{item.primaryMuscleName}</Text>
@@ -81,6 +99,26 @@ export function ExercisePicker({ onSelect, initialMuscleFilter = null }: Exercis
           </Text>
         }
       />
+
+      <Modal visible={formGuideExercise !== null} onRequestClose={() => setFormGuideExercise(null)}>
+        {formGuideExercise ? (
+          <>
+            <View style={styles.formGuideIllustrationWrap}>
+              <FormGuideIllustration
+                movement={getMovementPattern(formGuideExercise.primaryMuscleId)}
+                equipmentFamily={getEquipmentFamily(formGuideExercise.equipmentId)}
+                color={colors.ink}
+                size={160}
+              />
+            </View>
+            <Text style={[styles.formGuideTitle, { color: colors.ink }]}>{formGuideExercise.name}</Text>
+            <Text style={[styles.formGuideMeta, { color: colors.muted }]}>
+              {formGuideExercise.primaryMuscleName} · {formGuideExercise.equipmentId.replace(/-/g, ' ')}
+            </Text>
+            <Button label="Close" onPress={() => setFormGuideExercise(null)} variant="secondary" fullWidth style={styles.formGuideCloseButton} />
+          </>
+        ) : null}
+      </Modal>
     </View>
   );
 }
@@ -143,6 +181,31 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.lg,
       textAlign: 'center' as const,
       marginTop: theme.spacing.xl,
+    },
+    thumbnail: {
+      width: 44,
+      height: 44,
+      borderWidth: 1,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    formGuideIllustrationWrap: {
+      alignItems: 'center' as const,
+      marginBottom: theme.spacing.lg,
+    },
+    formGuideTitle: {
+      fontFamily: theme.fontFamily.bold,
+      fontSize: theme.fontSize.xl,
+      textAlign: 'center' as const,
+    },
+    formGuideMeta: {
+      fontFamily: theme.fontFamily.medium,
+      fontSize: theme.fontSize.sm,
+      textAlign: 'center' as const,
+      marginTop: 4,
+    },
+    formGuideCloseButton: {
+      marginTop: theme.spacing.lg,
     },
   };
 }

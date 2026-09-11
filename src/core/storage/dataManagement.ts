@@ -1,6 +1,8 @@
+import * as DocumentPicker from 'expo-document-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { DevSettings } from 'react-native';
 
 import { DATABASE_NAME } from '@/core/database/client';
 import { getAllSetsForExport, resetUserData } from '@/core/database/queries/dataManagement.queries';
@@ -54,4 +56,25 @@ export async function backupDatabase(): Promise<void> {
 
 export async function resetAllData(db: SQLiteDatabase): Promise<void> {
   await resetUserData(db);
+}
+
+/**
+ * Dev/test-only: lets the developer pick a previously-created `.db` backup
+ * (see `backupDatabase`) and fully replaces the live database file with it.
+ * Closes the current connection first so the file isn't overwritten while
+ * open, then reloads the JS bundle so a fresh `SQLiteProvider` connection
+ * picks up the restored file. Returns false if the user cancelled the picker.
+ */
+export async function restoreDatabase(db: SQLiteDatabase): Promise<boolean> {
+  const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+  if (result.canceled || result.assets.length === 0) return false;
+
+  const pickedFile = new File(result.assets[0].uri);
+  await db.closeAsync();
+
+  const destination = new File(Paths.document, 'SQLite', DATABASE_NAME);
+  await pickedFile.copy(destination, { overwrite: true });
+
+  DevSettings.reload('Database restored from backup');
+  return true;
 }

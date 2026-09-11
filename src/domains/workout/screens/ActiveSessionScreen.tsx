@@ -1,7 +1,7 @@
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, FlatList, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getExerciseById } from '@/core/database/queries/exercises.queries';
@@ -43,6 +43,7 @@ export function ActiveSessionScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const {
     workoutId,
     title,
@@ -65,9 +66,19 @@ export function ActiveSessionScreen() {
   const [isPlateCalculatorEnabled, setPlateCalculatorEnabled] = useState(false);
   const [pendingReplacement, setPendingReplacement] = useState<PendingReplacement | null>(null);
   const elapsed = useElapsedLabel(startTime);
+  // Set synchronously right before the programmatic router.back() in
+  // handleFinishWorkout so the beforeRemove guard below can let it through
+  // without a confirmation — relying on `workoutId` for that check would race,
+  // since the Zustand update it depends on doesn't re-render in time.
+  const isFinishingRef = useRef(false);
 
   useEffect(() => {
-    if (!workoutId) {
+    // Skip when workoutId went null because we just finished — router.back()
+    // doesn't unmount this screen synchronously, so without this guard the
+    // in-flight transition re-renders with workoutId === null and this
+    // "boot into an empty screen" safety net fires, silently creating a new
+    // blank workout right after the user finished the old one.
+    if (!workoutId && !isFinishingRef.current) {
       startWorkout();
     }
     // Starting a workout is a one-time boot action for this screen, not a
@@ -75,6 +86,34 @@ export function ActiveSessionScreen() {
     // would fire it repeatedly since the store recreates it each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workoutId]);
+
+  // A back gesture/hardware-back shouldn't feel like it cancels the workout —
+  // the session already persists regardless, but leaving without warning
+  // reads as "did that just get discarded?". Only the Finish button should
+  // end the session; back navigation just steps away, session stays resumable.
+  useEffect(() => {
+    if (!workoutId) return;
+
+    const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+      if (isFinishingRef.current) return;
+
+      event.preventDefault();
+      Alert.alert(
+        'Workout in progress',
+        'Your session keeps running in the background. Resume it anytime from Home — only "Finish" ends it.',
+        [
+          { text: 'Keep training', style: 'cancel' },
+          {
+            text: 'Leave',
+            style: 'destructive',
+            onPress: () => navigation.dispatch(event.data.action),
+          },
+        ]
+      );
+    });
+
+    return unsubscribe;
+  }, [navigation, workoutId]);
 
   function handleAddExercise() {
     setNavigationCallback<ExerciseSummary>((exercise) => {
@@ -84,6 +123,11 @@ export function ActiveSessionScreen() {
   }
 
   async function handleFinishWorkout() {
+    // Must flip before finishWorkout() — that call is what clears workoutId
+    // in the store, and the await below yields a microtask gap where the
+    // "no workout, boot a blank one" effect above can fire on the stale
+    // workoutId === null render before this line ever runs.
+    isFinishingRef.current = true;
     const finishedWorkoutId = await finishWorkout();
     router.back();
     if (finishedWorkoutId) {

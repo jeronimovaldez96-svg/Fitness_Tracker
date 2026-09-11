@@ -36,7 +36,9 @@
       "expo-sqlite",
       "expo-notifications",
       "expo-splash-screen",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-audio",
+      "expo-document-picker"
     ]
   }
 }
