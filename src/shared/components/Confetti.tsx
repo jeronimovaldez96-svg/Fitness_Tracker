@@ -8,12 +8,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { colors } from '@/core/theme';
+import { useTheme } from '@/core/theme';
 
 const PARTICLE_COUNT = 24;
 const FALL_DISTANCE = 420;
 const DURATION_MS = 1100;
-const PARTICLE_COLORS = [colors.primary, colors.success, colors.warning, colors.danger, colors.text];
 
 type Particle = {
   id: number;
@@ -73,6 +72,8 @@ function ConfettiPiece({ particle }: { particle: Particle }) {
  */
 export function Confetti({ trigger }: { trigger: string | null }) {
   const { width } = useWindowDimensions();
+  const { colors } = useTheme();
+  const particleColors = [colors.accent, colors.ink, colors.accentDeep, colors.muted, colors.accent];
   const [prevTrigger, setPrevTrigger] = useState(trigger);
   const [particles, setParticles] = useState<Particle[]>([]);
 
@@ -84,7 +85,7 @@ export function Confetti({ trigger }: { trigger: string | null }) {
         Array.from({ length: PARTICLE_COUNT }, (_, id) => ({
           id,
           x: seededRandom(seed + id) * width,
-          color: PARTICLE_COLORS[id % PARTICLE_COLORS.length],
+          color: particleColors[id % particleColors.length],
           delay: seededRandom(seed + id + 1000) * 150,
           rotation: 360 + seededRandom(seed + id + 2000) * 360,
         }))
@@ -119,6 +120,5 @@ const styles = StyleSheet.create({
     top: -20,
     width: 8,
     height: 14,
-    borderRadius: 2,
   },
 });

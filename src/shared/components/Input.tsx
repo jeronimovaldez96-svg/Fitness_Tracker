@@ -1,6 +1,6 @@
-import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { Text, TextInput, View, type TextInputProps } from 'react-native';
 
-import { colors, fontSize, MIN_TOUCH_TARGET, radius, spacing } from '@/core/theme';
+import { useThemedStyles, useTheme, type Theme } from '@/core/theme';
 
 type InputProps = TextInputProps & {
   label?: string;
@@ -8,42 +8,45 @@ type InputProps = TextInputProps & {
 };
 
 export function Input({ label, error, style, ...textInputProps }: InputProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={styles.container}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? <Text style={[styles.label, { color: colors.muted }]}>{label}</Text> : null}
       <TextInput
-        placeholderTextColor={colors.textMuted}
-        style={[styles.input, error ? styles.inputError : null, style]}
+        placeholderTextColor={colors.ghost}
+        style={[
+          styles.input,
+          { borderColor: error ? colors.accent : colors.divider, backgroundColor: colors.surface, color: colors.ink },
+          style,
+        ]}
         {...textInputProps}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Text style={[styles.error, { color: colors.accent }]}>{error}</Text> : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: spacing.xs,
-  },
-  label: {
-    color: colors.textMuted,
-    fontSize: fontSize.sm,
-  },
-  input: {
-    minHeight: MIN_TOUCH_TARGET,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    color: colors.text,
-    paddingHorizontal: spacing.md,
-    fontSize: fontSize.md,
-  },
-  inputError: {
-    borderColor: colors.danger,
-  },
-  error: {
-    color: colors.danger,
-    fontSize: fontSize.xs,
-  },
-});
+function createStyles(theme: Theme) {
+  return {
+    container: {
+      gap: theme.spacing.xs,
+    },
+    label: {
+      fontFamily: theme.fontFamily.medium,
+      fontSize: theme.fontSize.sm,
+    },
+    input: {
+      minHeight: theme.minTouchTarget,
+      borderWidth: 1,
+      paddingHorizontal: theme.spacing.md,
+      fontFamily: theme.fontFamily.medium,
+      fontSize: theme.fontSize.lg,
+    },
+    error: {
+      fontFamily: theme.fontFamily.medium,
+      fontSize: theme.fontSize.xs,
+    },
+  };
+}

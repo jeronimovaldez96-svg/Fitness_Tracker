@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
-import { Modal as RNModal, Pressable, StyleSheet } from 'react-native';
+import { Modal as RNModal, Pressable } from 'react-native';
 
-import { colors, radius, spacing } from '@/core/theme';
+import { useThemedStyles, useTheme, type Theme } from '@/core/theme';
 
 type ModalProps = {
   visible: boolean;
@@ -10,6 +10,9 @@ type ModalProps = {
 };
 
 export function Modal({ visible, onRequestClose, children }: ModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <RNModal
       visible={visible}
@@ -18,8 +21,11 @@ export function Modal({ visible, onRequestClose, children }: ModalProps) {
       onRequestClose={onRequestClose}
       statusBarTranslucent
     >
-      <Pressable style={styles.backdrop} onPress={onRequestClose}>
-        <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
+      <Pressable style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={onRequestClose}>
+        <Pressable
+          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.divider }]}
+          onPress={(e) => e.stopPropagation()}
+        >
           {children}
         </Pressable>
       </Pressable>
@@ -27,18 +33,18 @@ export function Modal({ visible, onRequestClose, children }: ModalProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: colors.overlay,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  card: {
-    width: '100%',
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-  },
-});
+function createStyles(theme: Theme) {
+  return {
+    backdrop: {
+      flex: 1,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      padding: theme.spacing.xl,
+    },
+    card: {
+      width: '100%' as const,
+      borderTopWidth: 2,
+      padding: theme.spacing.lg,
+    },
+  };
+}

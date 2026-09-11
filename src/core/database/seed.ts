@@ -818,6 +818,95 @@ const EXERCISES: SeedExercise[] = [
   },
 ];
 
+type SeedRoutineExercise = {
+  exerciseId: string;
+  targetSets: number;
+  targetReps: string;
+  targetWeightKg: number;
+};
+type SeedRoutine = {
+  id: string;
+  name: string;
+  cycleLabel: string;
+  dayLabel: string;
+  exercises: SeedRoutineExercise[];
+};
+
+/** Starter templates so Plans/Today aren't an empty shell on first run — same rationale as the exercise catalog seed below. */
+const ROUTINES: SeedRoutine[] = [
+  {
+    id: 'routine-push-a',
+    name: 'Push A',
+    cycleLabel: 'PUSH / PULL / LEGS',
+    dayLabel: 'DAY 1',
+    exercises: [
+      { exerciseId: 'bench-press', targetSets: 3, targetReps: '8', targetWeightKg: 60 },
+      { exerciseId: 'incline-bench-press', targetSets: 3, targetReps: '10', targetWeightKg: 40 },
+      { exerciseId: 'overhead-press', targetSets: 4, targetReps: '6', targetWeightKg: 35 },
+      { exerciseId: 'cable-tricep-pushdown', targetSets: 3, targetReps: '12', targetWeightKg: 25 },
+      { exerciseId: 'lateral-raise', targetSets: 3, targetReps: '15', targetWeightKg: 8 },
+    ],
+  },
+  {
+    id: 'routine-pull-b',
+    name: 'Pull B',
+    cycleLabel: 'PUSH / PULL / LEGS',
+    dayLabel: 'DAY 2',
+    exercises: [
+      { exerciseId: 'deadlift', targetSets: 3, targetReps: '5', targetWeightKg: 100 },
+      { exerciseId: 'barbell-row', targetSets: 4, targetReps: '8', targetWeightKg: 50 },
+      { exerciseId: 'lat-pulldown', targetSets: 3, targetReps: '10', targetWeightKg: 45 },
+      { exerciseId: 'seated-cable-row', targetSets: 3, targetReps: '10', targetWeightKg: 40 },
+      { exerciseId: 'dumbbell-curl', targetSets: 3, targetReps: '12', targetWeightKg: 12 },
+    ],
+  },
+  {
+    id: 'routine-legs-a',
+    name: 'Legs A',
+    cycleLabel: 'PUSH / PULL / LEGS',
+    dayLabel: 'DAY 3',
+    exercises: [
+      { exerciseId: 'back-squat', targetSets: 4, targetReps: '6', targetWeightKg: 80 },
+      { exerciseId: 'romanian-deadlift', targetSets: 3, targetReps: '10', targetWeightKg: 60 },
+      { exerciseId: 'leg-press', targetSets: 3, targetReps: '12', targetWeightKg: 120 },
+      { exerciseId: 'leg-extension', targetSets: 3, targetReps: '15', targetWeightKg: 30 },
+    ],
+  },
+];
+
+export async function seedRoutinesIfEmpty(db: SQLiteDatabase): Promise<void> {
+  const existing = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM routines');
+  if ((existing?.count ?? 0) > 0) return;
+
+  await db.withTransactionAsync(async () => {
+    for (const [routineIndex, routine] of ROUTINES.entries()) {
+      await db.runAsync(
+        'INSERT INTO routines (id, name, cycle_label, day_label, order_index) VALUES (?, ?, ?, ?, ?)',
+        routine.id,
+        routine.name,
+        routine.cycleLabel,
+        routine.dayLabel,
+        routineIndex
+      );
+
+      for (const [exerciseIndex, exercise] of routine.exercises.entries()) {
+        await db.runAsync(
+          `INSERT INTO routine_exercises
+            (id, routine_id, exercise_id, order_index, target_sets, target_reps, target_weight_kg)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `${routine.id}-${exerciseIndex}`,
+          routine.id,
+          exercise.exerciseId,
+          exerciseIndex,
+          exercise.targetSets,
+          exercise.targetReps,
+          exercise.targetWeightKg
+        );
+      }
+    }
+  });
+}
+
 export async function seedDatabaseIfEmpty(db: SQLiteDatabase): Promise<void> {
   const existing = await db.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM exercises'

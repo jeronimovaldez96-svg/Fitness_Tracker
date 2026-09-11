@@ -8,7 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, radius, spacing } from '@/core/theme';
+import { useThemedStyles, useTheme, type Theme } from '@/core/theme';
 
 type SheetProps = {
   visible: boolean;
@@ -21,6 +21,9 @@ const OFFSCREEN_Y = 400;
 
 export function Sheet({ visible, onClose, children }: SheetProps) {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const { colors } = theme;
+  const styles = useThemedStyles(createStyles);
   const translateY = useSharedValue(OFFSCREEN_Y);
   const backdropOpacity = useSharedValue(0);
   const [shouldRender, setShouldRender] = useState(visible);
@@ -60,11 +63,16 @@ export function Sheet({ visible, onClose, children }: SheetProps) {
   return (
     <RNModal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.container}>
-        <Animated.View style={[styles.backdrop, backdropStyle]}>
+        <Animated.View style={[styles.backdrop, { backgroundColor: colors.overlay }, backdropStyle]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
         </Animated.View>
         <Animated.View
-          style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }, sheetStyle]}
+          style={[
+            styles.sheet,
+            { backgroundColor: colors.surface, borderColor: colors.divider },
+            { paddingBottom: insets.bottom + theme.spacing.md },
+            sheetStyle,
+          ]}
         >
           {children}
         </Animated.View>
@@ -73,20 +81,19 @@ export function Sheet({ visible, onClose, children }: SheetProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: colors.overlay,
-  },
-  sheet: {
-    backgroundColor: colors.surfaceElevated,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    paddingTop: spacing.lg,
-    paddingHorizontal: spacing.md,
-  },
-});
+function createStyles(theme: Theme) {
+  return {
+    container: {
+      flex: 1,
+      justifyContent: 'flex-end' as const,
+    },
+    backdrop: {
+      ...StyleSheet.absoluteFill,
+    },
+    sheet: {
+      borderTopWidth: 2,
+      paddingTop: theme.spacing.lg,
+      paddingHorizontal: theme.spacing.md,
+    },
+  };
+}

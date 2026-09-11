@@ -1,6 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import { colors, fontSize, fontWeight, MIN_TOUCH_TARGET, radius, spacing } from '@/core/theme';
+import { useThemedStyles, useTheme, type Theme } from '@/core/theme';
 
 export type NumericPadKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.' | 'backspace';
 
@@ -26,19 +26,24 @@ export function NumericPad({
   onTogglePlateCalculator,
   plateSummary,
 }: NumericPadProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
-    <View>
+    <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
       {onTogglePlateCalculator ? (
-        <Pressable
-          onPress={onTogglePlateCalculator}
-          accessibilityRole="button"
-          accessibilityLabel="Toggle plate calculator"
-          style={[styles.plateToggle, isPlateCalculatorEnabled && styles.plateToggleActive]}
-        >
-          <Text style={styles.plateToggleLabel}>
-            {isPlateCalculatorEnabled && plateSummary ? plateSummary : 'Plates'}
-          </Text>
-        </Pressable>
+        <View style={styles.plateRow}>
+          <Pressable
+            onPress={onTogglePlateCalculator}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle plate calculator"
+            style={[styles.plateToggle, { borderColor: colors.divider }]}
+          >
+            <Text style={[styles.plateToggleLabel, { color: colors.ink }]} numberOfLines={1}>
+              {isPlateCalculatorEnabled && plateSummary ? plateSummary : 'Plate calculator'}
+            </Text>
+          </Pressable>
+        </View>
       ) : null}
 
       {GRID.map((row, rowIndex) => (
@@ -49,9 +54,13 @@ export function NumericPad({
               onPress={() => onKeyPress(key)}
               accessibilityRole="button"
               accessibilityLabel={key === 'backspace' ? 'Delete' : key}
-              style={({ pressed }) => [styles.key, pressed && styles.keyPressed]}
+              style={({ pressed }) => [
+                styles.key,
+                { backgroundColor: colors.surface2 },
+                pressed && styles.keyPressed,
+              ]}
             >
-              <Text style={styles.keyLabel}>{key === 'backspace' ? '⌫' : key}</Text>
+              <Text style={[styles.keyLabel, { color: colors.ink }]}>{key === 'backspace' ? '⌫' : key}</Text>
             </Pressable>
           ))}
         </View>
@@ -61,64 +70,73 @@ export function NumericPad({
         onPress={onNextSet}
         accessibilityRole="button"
         accessibilityLabel="Next set"
-        style={({ pressed }) => [styles.nextSet, pressed && styles.keyPressed]}
+        style={({ pressed }) => [
+          styles.nextSet,
+          { backgroundColor: colors.accent },
+          pressed && styles.keyPressed,
+        ]}
       >
-        <Text style={styles.nextSetLabel}>Next Set</Text>
+        <Text style={[styles.nextSetLabel, { color: colors.accentInk }]}>Next set</Text>
+        <Text style={[styles.nextSetArrow, { color: colors.accentInk }]}>→</Text>
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  key: {
-    flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  keyPressed: {
-    opacity: 0.7,
-  },
-  keyLabel: {
-    color: colors.text,
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.medium,
-  },
-  plateToggle: {
-    alignSelf: 'flex-start',
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  plateToggleActive: {
-    backgroundColor: colors.primaryMuted,
-  },
-  plateToggleLabel: {
-    color: colors.text,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-  },
-  nextSet: {
-    minHeight: MIN_TOUCH_TARGET,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextSetLabel: {
-    color: colors.text,
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
-  },
-});
+function createStyles(theme: Theme) {
+  return {
+    container: {
+      borderTopWidth: 2,
+      padding: theme.spacing.md,
+      gap: theme.spacing.sm,
+    },
+    plateRow: {
+      flexDirection: 'row' as const,
+      justifyContent: 'space-between' as const,
+      marginBottom: theme.spacing.xs,
+    },
+    row: {
+      flexDirection: 'row' as const,
+      gap: theme.spacing.sm,
+    },
+    key: {
+      flex: 1,
+      minHeight: 52,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    keyPressed: {
+      opacity: 0.7,
+    },
+    keyLabel: {
+      fontFamily: theme.fontFamily.bold,
+      fontSize: theme.fontSize.xxl,
+    },
+    plateToggle: {
+      minHeight: 44,
+      paddingHorizontal: theme.spacing.md,
+      borderWidth: 1,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      flex: 1,
+    },
+    plateToggleLabel: {
+      fontFamily: theme.fontFamily.medium,
+      fontSize: theme.fontSize.md,
+    },
+    nextSet: {
+      minHeight: 52,
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+      paddingHorizontal: theme.spacing.lg,
+    },
+    nextSetLabel: {
+      fontFamily: theme.fontFamily.bold,
+      fontSize: theme.fontSize.xl,
+    },
+    nextSetArrow: {
+      fontSize: theme.fontSize.xxl,
+    },
+  };
+}
