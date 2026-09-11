@@ -39,6 +39,7 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const workoutId = useActiveWorkoutStore((state) => state.workoutId);
+  const activeWorkoutTitle = useActiveWorkoutStore((state) => state.title);
   const startWorkout = useActiveWorkoutStore((state) => state.startWorkout);
   const startWorkoutFromRoutine = useActiveWorkoutStore((state) => state.startWorkoutFromRoutine);
   const [data, setData] = useState<DashboardData | null>(null);
@@ -132,7 +133,25 @@ export default function HomeScreen() {
       <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
       <View style={[styles.upNextCard, { backgroundColor: colors.surface }]}>
-        {data.nextRoutine ? (
+        {workoutId ? (
+          // A session is already running (e.g. the user backed out of it
+          // earlier). Resuming must never call startWorkout*/startWorkoutFromRoutine
+          // again — that would create a second in-progress workout row
+          // alongside this one.
+          <>
+            <Text style={[styles.upNextKicker, { color: colors.accent }]}>WORKOUT IN PROGRESS</Text>
+            <View style={styles.upNextTitleRow}>
+              <Text style={[styles.upNextTitle, { color: colors.ink }]}>{activeWorkoutTitle || 'Workout'}</Text>
+            </View>
+            <Button
+              label="Resume workout"
+              onPress={() => router.push('/active-session')}
+              variant="primary"
+              fullWidth
+              showArrow
+            />
+          </>
+        ) : data.nextRoutine ? (
           <>
             <View>
               <Text style={[styles.upNextKicker, { color: colors.accent }]}>

@@ -2,7 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { addMonths, addWeeks, startOfMonth, startOfWeek } from '@/shared/utils/dateBuckets';
 import { formatAxisDate } from '@/shared/utils/formatDate';
-import { calculateE1RM } from '@/shared/utils/oneRepMax';
+import { calculateE1RM, MAX_REPS_FOR_ESTIMATE } from '@/shared/utils/oneRepMax';
 import type { LiftTrend, PersonalRecordEntry, ProgressRange, VolumeSeries } from '@/domains/workout/types/progress.types';
 
 const TOP_LIFTS_COUNT = 4;
@@ -66,11 +66,11 @@ export async function getTopLiftsWithE1RMTrend(db: SQLiteDatabase, range: Progre
      FROM workout_sets ws
      JOIN workout_exercises we ON we.id = ws.workout_exercise_id
      JOIN exercises ex ON ex.id = we.exercise_id
-     WHERE ws.is_completed = 1 AND ws.reps > 0 AND ws.reps <= 10
+     WHERE ws.is_completed = 1 AND ws.reps > 0 AND ws.reps <= ?
      GROUP BY we.exercise_id
      ORDER BY set_count DESC
      LIMIT ?`,
-    [TOP_LIFTS_COUNT]
+    [MAX_REPS_FOR_ESTIMATE, TOP_LIFTS_COUNT]
   );
 
   const trends: LiftTrend[] = [];
@@ -79,10 +79,10 @@ export async function getTopLiftsWithE1RMTrend(db: SQLiteDatabase, range: Progre
       `SELECT ws.completed_at, ws.weight_kg, ws.reps
        FROM workout_sets ws
        JOIN workout_exercises we ON we.id = ws.workout_exercise_id
-       WHERE we.exercise_id = ? AND ws.is_completed = 1 AND ws.reps > 0 AND ws.reps <= 10
+       WHERE we.exercise_id = ? AND ws.is_completed = 1 AND ws.reps > 0 AND ws.reps <= ?
              AND ws.weight_kg IS NOT NULL AND ws.completed_at >= ?
        ORDER BY ws.completed_at ASC`,
-      [lift.exercise_id, rangeStart]
+      [lift.exercise_id, MAX_REPS_FOR_ESTIMATE, rangeStart]
     );
     if (sets.length === 0) continue;
 

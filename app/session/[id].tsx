@@ -100,7 +100,10 @@ export default function SessionRoute() {
                   {set.reps}
                   <Text style={[styles.setUnit, { color: colors.muted }]}> reps</Text>
                 </Text>
-                {set.isPersonalRecord ? <Tag variant="accent" label="PR" /> : null}
+                {/* Always rendered (never conditionally mounted) so the weight/reps
+                    columns never reflow depending on whether a set is a PR — only
+                    this tag's visibility toggles. */}
+                <Tag variant="accent" label="PR" style={!set.isPersonalRecord && styles.prTagHidden} />
               </View>
             ))}
           </View>
@@ -206,6 +209,9 @@ function createStyles(theme: Theme) {
     setUnit: {
       fontFamily: theme.fontFamily.medium,
       fontSize: theme.fontSize.sm,
+    },
+    prTagHidden: {
+      opacity: 0,
     },
     footer: {
       borderTopWidth: 2,

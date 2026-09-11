@@ -18,6 +18,7 @@ import {
   scheduleRestTimerNotification,
 } from '@/core/notifications/restTimerNotifications';
 import { storage } from '@/core/storage/mmkv';
+import { getDefaultRestSeconds } from '@/core/storage/settings';
 import type { ExerciseSummary } from '@/domains/catalog/types/catalog.types';
 import { calculateE1RM } from '@/shared/utils/oneRepMax';
 import { generateId } from '@/shared/utils/id';
@@ -25,7 +26,6 @@ import { generateId } from '@/shared/utils/id';
 import type { ActiveSet, ActiveWorkoutExercise, FocusedField } from '../types/workout.types';
 
 const SNAPSHOT_KEY = 'active-workout-snapshot-v1';
-const DEFAULT_REST_SECONDS = 90;
 const MIN_REST_SECONDS = 5;
 
 export type ReplaceExerciseMode = 'transfer' | 'reset';
@@ -349,7 +349,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
     await completeWorkoutSet(db, { id: setId, weightKg, reps, completedAt, isPersonalRecord });
 
-    const restTimerTargetEndTimestamp = Date.now() + DEFAULT_REST_SECONDS * 1000;
+    const defaultRestSeconds = getDefaultRestSeconds();
+    const restTimerTargetEndTimestamp = Date.now() + defaultRestSeconds * 1000;
 
     set({
       exercises: get().exercises.map((ex) =>
@@ -363,7 +364,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
             }
       ),
       restTimerTargetEndTimestamp,
-      restTimerDurationSeconds: DEFAULT_REST_SECONDS,
+      restTimerDurationSeconds: defaultRestSeconds,
       lastPersonalRecordSetId: isPersonalRecord ? setId : get().lastPersonalRecordSetId,
     });
     persistSnapshot(get());
@@ -473,7 +474,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
     const newDuration = Math.max(
       MIN_REST_SECONDS,
-      (state.restTimerDurationSeconds ?? DEFAULT_REST_SECONDS) + deltaSeconds
+      (state.restTimerDurationSeconds ?? getDefaultRestSeconds()) + deltaSeconds
     );
 
     set({ restTimerTargetEndTimestamp: newTarget, restTimerDurationSeconds: newDuration });

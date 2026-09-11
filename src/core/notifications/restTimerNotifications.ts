@@ -34,7 +34,6 @@ export async function requestNotificationPermission(): Promise<boolean> {
 /** Reschedules the "rest complete" alert for the given wall-clock end time, replacing any prior one. */
 export async function scheduleRestTimerNotification(targetEndTimestamp: number): Promise<void> {
   await cancelRestTimerNotification();
-  const seconds = Math.max(1, Math.round((targetEndTimestamp - Date.now()) / 1000));
   await Notifications.scheduleNotificationAsync({
     identifier: NOTIFICATION_ID,
     content: {
@@ -43,8 +42,11 @@ export async function scheduleRestTimerNotification(targetEndTimestamp: number):
       ...(Platform.OS === 'ios' ? { sound: 'default', interruptionLevel: 'timeSensitive' } : {}),
     },
     trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds,
+      // Fires at this exact wall-clock timestamp rather than a relative
+      // "seconds from now" delay, so rescheduling from adjustRestTimer can't
+      // drift even if there's a tick of latency before this call resolves.
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: targetEndTimestamp,
       channelId: CHANNEL_ID,
     },
   });
